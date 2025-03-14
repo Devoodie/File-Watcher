@@ -3,6 +3,38 @@ const red = "\x1B[31m";
 const yellow = "\x1B[33m";
 const reset = "\x1B[0m";
 
+const err_log = std.log.Level.err;
+const warn_log = std.log.Level.warn;
+const info_log = std.log.Level.info;
+
+pub const std_options = .{ .logFn = log, .log_level = .warn };
+
+pub fn log(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const working_dir = std.fs.cwd();
+
+    const log_file = try working_dir.createFile("./file-watcher-log", .{});
+    const log_writer = log_file.writer();
+
+    const prefix = string: switch (message_level) {
+        std.log.Level.warn => {
+            break :string yellow ++ "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+        },
+        std.log.Level.err => {
+            break :string red ++ "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+        },
+        std.log.Level.info => {
+            break :string "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+        },
+    };
+
+    try std.fmt.format(log_writer, prefix ++ format ++ "\n" ++ reset, args);
+}
+
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
 
@@ -104,16 +136,6 @@ pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator
         }
     }
 }
-
-pub fn log(
-    comptime message_level: std.log.Level,
-    comptime scope: @Type(.EnumLiteral),
-    comptime format: []const u8,
-    args: anytype,
-) void {
-    const = try std.fs.createFileAbsolute(std.process.getCwd(out_buffer: []u8), .{});
-}
-
 
 test "simple test" {
     var list = std.ArrayList(i32).init(std.testing.allocator);
