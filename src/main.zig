@@ -1,5 +1,6 @@
 const std = @import("std");
 const red = "\x1B[31m";
+const yellow = "\x1B[33m";
 const reset = "\x1B[0m";
 
 pub fn main() !void {
@@ -26,12 +27,14 @@ pub fn main() !void {
         try std.fmt.format(ostream, "Source Path: {s}\n", .{source.?});
     } else {
         try std.fmt.format(errstream, "{s} No Source path argument found!{s}\n {s}", .{ red, reset, help });
+        std.log.err("{s} No Source path argument found!{s}\n {s}", .{ red, reset, help });
         std.process.exit(1);
     }
     if (dest != null) {
         try std.fmt.format(ostream, "Destination Path: {s}\n", .{dest.?});
     } else {
         try std.fmt.format(errstream, "{s} No Destination path argument found!{s}\n", .{ red, reset });
+        std.log.err("{s} No Destination path argument found!{s}\n", .{ red, reset });
         std.process.exit(1);
     }
 
@@ -57,8 +60,6 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
     var gpa = std.heap.DebugAllocator(.{}).init;
     const allocator = gpa.allocator();
 
-    _ = ostream;
-
     var iteator = source.iterate();
 
     while (try iteator.next()) |file| {
@@ -73,7 +74,7 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
                 } else |err| switch (err) {
                     std.fs.Dir.OpenError.FileNotFound => {
                         try std.fmt.format(errstream, "{s}No file Found in Destination Directory: {s}\nCreating New File {s}{s}\n", .{ red, file_name, file_name, reset });
-                        std.log.err("{s}No file Found in Destination Directory: {s}\nCreating New File {s}{s}\n", .{ red, file_name, file_name, reset });
+                        std.log.warn("{s}No file Found in Destination Directory: {s}\nCreating New File {s}{s}\n", .{ yellow, file_name, file_name, reset });
                         break :blk try dest.makeOpenPath(file_name, .{});
                     },
                     else => {
@@ -83,23 +84,36 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
             };
             const sub_dir = try source.openDir(file_name, .{ .iterate = true });
 
-            try recurse(sub_dir, dest_dir, allocator);
+            try recurse(sub_dir, dest_dir, allocator, ostream, errstream);
         }
     }
 }
-pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator) !void {
+pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator, ostream: std.fs.File.Writer, errstream: std.fs.File.Writer) !void {
     var walker = try dir.walk(allocator);
-    var stack = std.ArrayList(std.fs.Dir).init(allocator);
+    defer walker.deinit();
+    var stack = std.ArrayList(std.fs.Dir.Walker).init(allocator);
     defer stack.deinit();
 
+    _ = ostream;
+    _ = errstream;
     while (try walker.next()) |sub_file| {
         if (sub_file.kind == .directory) {
-            _ = void;
+            //            std.fmt.Format(errstream, "", .{});
         } else {
             try dir.copyFile(sub_file.basename, mirror, "./", .{});
         }
     }
 }
+
+pub fn log(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const = try std.fs.createFileAbsolute(std.process.getCwd(out_buffer: []u8), .{});
+}
+
 
 test "simple test" {
     var list = std.ArrayList(i32).init(std.testing.allocator);
