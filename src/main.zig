@@ -6,39 +6,42 @@ const reset = "\x1B[0m";
 const err_log = std.log.Level.err;
 const warn_log = std.log.Level.warn;
 const info_log = std.log.Level.info;
+var log_writer: std.fs.File.Writer = undefined;
 
-pub const std_options = .{ .logFn = log, .log_level = .warn };
+pub const std_options: std.Options = .{ .logFn = log, .log_level = .warn };
 
 pub fn log(
     comptime message_level: std.log.Level,
-    comptime scope: @Type(.EnumLiteral),
+    comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const working_dir = std.fs.cwd();
-
-    const log_file = try working_dir.createFile("./file-watcher-log", .{});
-    const log_writer = log_file.writer();
-
     const prefix = string: switch (message_level) {
         std.log.Level.warn => {
-            break :string yellow ++ "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            break :string yellow ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
         },
         std.log.Level.err => {
-            break :string red ++ "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            break :string red ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
         },
         std.log.Level.info => {
-            break :string "[" ++ message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            break :string "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+        },
+        else => {
+            break :string yellow ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
         },
     };
 
-    try std.fmt.format(log_writer, prefix ++ format ++ "\n" ++ reset, args);
+    nosuspend log_writer.print(prefix ++ format ++ "\n" ++ reset, args) catch return;
 }
 
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
 
     var args = std.process.args();
+
+    const cwd = std.fs.cwd();
+    const log_file = try cwd.createFile("./log_file", .{});
+    log_writer = log_file.writer();
 
     const ostream = std.io.getStdOut().writer();
     const errstream = std.io.getStdErr().writer();
