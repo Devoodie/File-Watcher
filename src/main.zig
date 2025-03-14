@@ -59,9 +59,9 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
 
     _ = ostream;
 
-    var iteators = source.iterate();
+    var iteator = source.iterate();
 
-    while (try iteators.next()) |file| {
+    while (try iteator.next()) |file| {
         const file_name = file.name;
 
         if (file.kind == .directory) {
@@ -83,14 +83,20 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
             };
             const sub_dir = try source.openDir(file_name, .{ .iterate = true });
 
-            var walker = try sub_dir.walk(allocator);
-            while (try walker.next()) |sub_file| {
-                if (sub_file.kind == .directory) {
-                    _ = void;
-                } else {
-                    try sub_dir.copyFile(sub_file.basename, dest_dir, "./", .{});
-                }
-            }
+            try recurse(sub_dir, dest_dir, allocator);
+        }
+    }
+}
+pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator) !void {
+    var walker = try dir.walk(allocator);
+    var stack = std.ArrayList(std.fs.Dir).init(allocator);
+    defer stack.deinit();
+
+    while (try walker.next()) |sub_file| {
+        if (sub_file.kind == .directory) {
+            _ = void;
+        } else {
+            try dir.copyFile(sub_file.basename, mirror, "./", .{});
         }
     }
 }
