@@ -29,13 +29,27 @@ pub fn main() !void {
         std.process.exit(1);
     }
     if (dest != null) {
-        try std.fmt.format(ostream, "Path: {s}\n", .{dest.?});
+        try std.fmt.format(ostream, "Destination Path: {s}\n", .{dest.?});
     } else {
         try std.fmt.format(errstream, "{s} No Destination path argument found!{s}\n", .{ red, reset });
         std.process.exit(1);
     }
 
-    //    try std.fs.copyFileAbsolute(source_path: []const u8, dest_path: []const u8, .{});
+    const source_dir = try std.fs.openDirAbsolute(source.?, .{});
+    defer source_dir.close();
+
+    const dest_dir = try std.fs.openDirAbsolute(dest.?, .{});
+    defer dest_dir.close();
+
+    var src_meta: std.fs.File.Metadata = undefined;
+    var dest_meta: std.fs.File.Metadata = undefined;
+
+    while (true) {
+        src_meta = try source_dir.metadata();
+        dest_meta = try dest_dir.metadata();
+
+        if (src_meta.modified() < dest_meta.modified()) {}
+    }
 }
 
 test "simple test" {
