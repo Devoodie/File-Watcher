@@ -1,6 +1,4 @@
-[31m[error] default: [31m No Source path argument found![0m
- info: file_watcher [options]
+[info]: info: file_watcher [options]
  -d         Destination: Absolute path of destination location.
  -s         Source: Absolute path of source location. 
-
-[0m
+[error]: No Source path argument found!

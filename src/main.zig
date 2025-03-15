@@ -3,12 +3,12 @@ const red = "\x1B[31m";
 const yellow = "\x1B[33m";
 const reset = "\x1B[0m";
 
-const err_log = std.log.Level.err;
-const warn_log = std.log.Level.warn;
-const info_log = std.log.Level.info;
 var log_writer: std.fs.File.Writer = undefined;
 
-pub const std_options: std.Options = .{ .logFn = log, .log_level = .warn };
+const ostream = std.io.getStdOut().writer();
+const errstream = std.io.getStdErr().writer();
+
+pub const std_options: std.Options = .{ .logFn = log, .log_level = .info };
 
 pub fn log(
     comptime message_level: std.log.Level,
@@ -16,22 +16,29 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const prefix = string: switch (message_level) {
+    _ = scope;
+
+    switch (message_level) {
         std.log.Level.warn => {
-            break :string yellow ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            const stream_prefix = yellow ++ "[" ++ comptime message_level.asText() ++ "]" ++ ": ";
+            nosuspend errstream.print(stream_prefix ++ format ++ reset, args) catch return;
         },
         std.log.Level.err => {
-            break :string red ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            const stream_prefix = red ++ "[" ++ comptime message_level.asText() ++ "]" ++ ": ";
+            nosuspend errstream.print(stream_prefix ++ format ++ reset, args) catch return;
         },
         std.log.Level.info => {
-            break :string "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            const stream_prefix = "[" ++ comptime message_level.asText() ++ "]" ++ ": ";
+            nosuspend ostream.print(stream_prefix ++ format, args) catch return;
         },
         else => {
-            break :string yellow ++ "[" ++ comptime message_level.asText() ++ "] " ++ @tagName(scope) ++ ": ";
+            const stream_prefix = yellow ++ "[" ++ comptime message_level.asText() ++ "]" ++ ": ";
+            nosuspend errstream.print(stream_prefix ++ format ++ reset, args) catch return;
         },
-    };
+    }
+    const prefix = "[" ++ comptime message_level.asText() ++ "]" ++ ": ";
 
-    nosuspend log_writer.print(prefix ++ format ++ "\n" ++ reset, args) catch return;
+    nosuspend log_writer.print(prefix ++ format, args) catch return;
 }
 
 pub fn main() !void {
@@ -43,8 +50,6 @@ pub fn main() !void {
     const log_file = try cwd.createFile("./log_file", .{});
     log_writer = log_file.writer();
 
-    const ostream = std.io.getStdOut().writer();
-    const errstream = std.io.getStdErr().writer();
     const help = "info: file_watcher [options]\n -d         Destination: Absolute path of destination location.\n -s         Source: Absolute path of source location. \n";
 
     var source: ?[]u8 = null;
@@ -61,15 +66,15 @@ pub fn main() !void {
     if (source != null) {
         try std.fmt.format(ostream, "Source Path: {s}\n", .{source.?});
     } else {
-        try std.fmt.format(errstream, "{s} No Source path argument found!{s}\n {s}", .{ red, reset, help });
-        std.log.err("{s} No Source path argument found!{s}\n {s}", .{ red, reset, help });
+        std.log.info("{s}", .{help});
+        std.log.err("No Source path argument found!\n", .{});
         std.process.exit(1);
     }
     if (dest != null) {
         try std.fmt.format(ostream, "Destination Path: {s}\n", .{dest.?});
     } else {
-        try std.fmt.format(errstream, "{s} No Destination path argument found!{s}\n", .{ red, reset });
-        std.log.err("{s} No Destination path argument found!{s}\n", .{ red, reset });
+        std.log.info("{s}", .{help});
+        std.log.err("No Destination path argument found!\n", .{});
         std.process.exit(1);
     }
 
@@ -88,10 +93,10 @@ pub fn main() !void {
 
     //   if (src_meta.modified() < dest_meta.modified()) {}
     // }
-    try copyFiles(&source_dir, &dest_dir, ostream, errstream);
+    try copyFiles(&source_dir, &dest_dir);
 }
 
-pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Writer, errstream: std.fs.File.Writer) !void {
+pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir) !void {
     var gpa = std.heap.DebugAllocator(.{}).init;
     const allocator = gpa.allocator();
 
@@ -119,11 +124,11 @@ pub fn copyFiles(source: *std.fs.Dir, dest: *std.fs.Dir, ostream: std.fs.File.Wr
             };
             const sub_dir = try source.openDir(file_name, .{ .iterate = true });
 
-            try recurse(sub_dir, dest_dir, allocator, ostream, errstream);
+            try recurse(sub_dir, dest_dir, allocator);
         }
     }
 }
-pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator, ostream: std.fs.File.Writer, errstream: std.fs.File.Writer) !void {
+pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator) !void {
     var walker = try dir.walk(allocator);
     defer walker.deinit();
     var stack = std.ArrayList(std.fs.Dir.Walker).init(allocator);
