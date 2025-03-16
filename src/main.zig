@@ -8,7 +8,7 @@ var log_writer: std.fs.File.Writer = undefined;
 const ostream = std.io.getStdOut().writer();
 const errstream = std.io.getStdErr().writer();
 
-pub const std_options: std.Options = .{ .logFn = log, .log_level = .info };
+pub const std_options: std.Options = .{ .logFn = log };
 
 var source: ?[]u8 = null;
 var dest: ?[]u8 = null;
@@ -100,28 +100,24 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
     var gpa = std.heap.DebugAllocator(.{}).init;
     const allocator = gpa.allocator();
 
-    _ = dest_dir;
     var iteator = source_dir.iterate();
 
     while (try iteator.next()) |file| {
         const file_name = file.name;
 
-        //       if (file.kind == .directory) {
-        //    const mirror_dir: std.fs.Dir = blk: {
-        //open the first level of files in destination and see if it exists
-        //if not create it
-        //       if (dest_dir.openDir(file_name, .{ .iterate = true })) |dir| {
-        //          break :blk dir;
-        //     } else |err| switch (err) {
-        //        std.fs.Dir.OpenError.FileNotFound => {
-        //           std.log.warn("{s}No file Found in Destination Directory: {s}\nCreating New File {s}\n", .{file_name, file_name});
-        //          break :blk try dest.makeOpenPath(file_name, .{});
-        //     },
-        //    else => {
-        //            return err;
-        //   },
-        // }
-        //            };
+        if (file.kind == .directory) {
+            //    const mirror_dir: std.fs.Dir = blk: {
+            //open the first level of files in destination and see if it exists
+            //if not create it
+            if (dest_dir.makeDir(file_name)) |_| {} else |err| switch (err) {
+                std.posix.MakeDirError.PathAlreadyExists => {
+                    _ = void;
+                },
+                else => {
+                    return err;
+                },
+            }
+        }
         const sub_dir = try source_dir.openDir(file_name, .{ .iterate = true });
 
         try recurse(sub_dir, allocator);
@@ -130,15 +126,17 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
 
 pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
     var walker = try dir.walk(allocator);
+    defer walker.deinit();
 
     const starting_index = source.?.len;
 
     while (try walker.next()) |sub_file| {
-        const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, sub_file.path[starting_index..] });
+        const realpath = try dir.realpathAlloc(allocator, sub_file.path);
+        const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, realpath[starting_index..] });
         if (sub_file.kind == .directory) {
             //push the current walker to the stack
             //open new directory with new walker
-            if (std.fs.makeDirAbsolute(mirror_path)) {
+            if (std.fs.makeDirAbsolute(mirror_path)) |_| {
                 std.log.warn("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
                 continue;
             } else |err| switch (err) {
@@ -150,10 +148,11 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
                 },
             }
         } else {
-            std.log.info("  Copying File: {s}\n", .{sub_file.basename});
-            try std.fs.copyFileAbsolute(sub_file.path, mirror_path, .{});
-            try std.fs.deleteFileAbsolute(sub_file.path);
+            std.log.info("  Copying File into Mirror: {s}\n", .{realpath});
+            try std.fs.copyFileAbsolute(realpath, mirror_path, .{});
+            try std.fs.deleteFileAbsolute(realpath);
         }
+        //        std.debug.print("{s}\n{s}\n", .{ realpath, mirror_path });
     }
 }
 
