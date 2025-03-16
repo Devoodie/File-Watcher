@@ -1,4 +1,0 @@
-[info]: info: file_watcher [options]
- -d         Destination: Absolute path of destination location.
- -s         Source: Absolute path of source location. 
-[error]: No Source path argument found!
