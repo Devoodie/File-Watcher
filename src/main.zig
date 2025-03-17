@@ -109,7 +109,9 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
             //    const mirror_dir: std.fs.Dir = blk: {
             //open the first level of files in destination and see if it exists
             //if not create it
-            if (dest_dir.makeDir(file_name)) |_| {} else |err| switch (err) {
+            if (dest_dir.makeDir(file_name)) |_| {
+                std.log.warn("Path doesn't exist in mirror! Creating Folder: {s}\n", .{file_name});
+            } else |err| switch (err) {
                 std.posix.MakeDirError.PathAlreadyExists => {
                     _ = void;
                 },
@@ -136,14 +138,10 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
         if (sub_file.kind == .directory) {
             //push the current walker to the stack
             //open new directory with new walker
-            if (std.fs.makeDirAbsolute(mirror_path)) |_| {
-                try ostream.print("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
-                try log_writer.print("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
-                continue;
+            if (std.fs.makeDirAbsolute(mirror_path)) {
+                std.log.warn("Path doesn't exist in mirror! Creating path: {s}\n", .{mirror_path});
             } else |err| switch (err) {
-                std.posix.MakeDirError.PathAlreadyExists => {
-                    continue;
-                },
+                std.posix.MakeDirError.PathAlreadyExists => {},
                 else => {
                     return err;
                 },
