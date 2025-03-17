@@ -64,24 +64,52 @@ pub fn main() !void {
     }
 
     if (source != null) {
-        try std.fmt.format(ostream, "Source Path: {s}\n", .{source.?});
+        std.log.info("Source Path: {s}\n", .{source.?});
     } else {
         std.log.info("{s}", .{help});
         std.log.err("No Source path argument found!\n", .{});
         std.process.exit(1);
     }
     if (dest != null) {
-        try ostream.print("Destination Path: {s}\n", .{dest.?});
+        std.log.info("Destination Path: {s}\n", .{dest.?});
     } else {
         std.log.info("{s}", .{help});
         std.log.err("No Destination path argument found!\n", .{});
         std.process.exit(1);
     }
 
-    var source_dir = try std.fs.openDirAbsolute(source.?, .{ .iterate = true });
+    var source_dir = std.fs.openDirAbsolute(source.?, .{ .iterate = true }) catch |err| switch (err) {
+        std.posix.OpenError.BadPathName => {
+            std.log.err("Invalid characters in source path!\n", .{});
+            std.process.exit(1);
+        },
+        std.posix.OpenError.FileNotFound => {
+            std.log.err("Source Path cannot be found!\n", .{});
+            std.process.exit(1);
+        },
+        else => {
+            std.log.err("Unexpected error occured when opening Source Path!\n", .{});
+            std.process.exit(1);
+        },
+    };
+
     defer source_dir.close();
 
-    var dest_dir = try std.fs.openDirAbsolute(dest.?, .{ .iterate = true });
+    var dest_dir = std.fs.openDirAbsolute(dest.?, .{ .iterate = true }) catch |err| switch (err) {
+        std.posix.OpenError.BadPathName => {
+            std.log.err("Invalid characters in source path!\n", .{});
+            std.process.exit(1);
+        },
+        std.posix.OpenError.FileNotFound => {
+            std.log.err("Source Path cannot be found!\n", .{});
+            std.process.exit(1);
+        },
+        else => {
+            std.log.err("Unexpected error occured when opening Source Path!\n", .{});
+            std.process.exit(1);
+        },
+    };
+
     defer dest_dir.close();
 
     //    var src_meta: std.fs.File.Metadata = undefined;
@@ -122,6 +150,11 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
         }
         const sub_dir = try source_dir.openDir(file_name, .{ .iterate = true });
 
+        var pool: std.Thread.Pool = .{ .allocator = allocator };
+        try pool.init(.{});
+        defer pool.deinit();
+
+        //        try pool.spawn(comptime func: anytype, );
         try recurse(sub_dir, allocator);
     }
 }
@@ -136,8 +169,6 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
         const realpath = try dir.realpathAlloc(allocator, sub_file.path);
         const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, realpath[starting_index..] });
         if (sub_file.kind == .directory) {
-            //push the current walker to the stack
-            //open new directory with new walker
             if (std.fs.makeDirAbsolute(mirror_path)) {
                 std.log.warn("Path doesn't exist in mirror! Creating path: {s}\n", .{mirror_path});
             } else |err| switch (err) {
@@ -147,12 +178,10 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
                 },
             }
         } else {
-            //try ostream.print("  Copying File into Mirror: {s}\n", .{realpath});
             std.log.info("  Copying File into Mirror: {s}\n", .{realpath});
             try std.fs.copyFileAbsolute(realpath, mirror_path, .{});
             try std.fs.deleteFileAbsolute(realpath);
         }
-        //        std.debug.print("{s}\n{s}\n", .{ realpath, mirror_path });
     }
 }
 
