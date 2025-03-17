@@ -8,7 +8,7 @@ var log_writer: std.fs.File.Writer = undefined;
 const ostream = std.io.getStdOut().writer();
 const errstream = std.io.getStdErr().writer();
 
-pub const std_options: std.Options = .{ .logFn = log };
+pub const std_options: std.Options = .{ .logFn = log, .log_level = .info };
 
 var source: ?[]u8 = null;
 var dest: ?[]u8 = null;
@@ -53,7 +53,7 @@ pub fn main() !void {
     const log_file = try cwd.createFile("./log_file", .{});
     log_writer = log_file.writer();
 
-    const help = "info: file_watcher [options]\n -d         Destination: Absolute path of destination location.\n -s         Source: Absolute path of source location. \n";
+    const help = "file_watcher [options]\n -d         Destination: Absolute path of destination location.\n -s         Source: Absolute path of source location. \n";
 
     while (args.next()) |argument| {
         if (std.mem.eql(u8, argument, "-d") or std.mem.eql(u8, argument, "--destination")) {
@@ -71,7 +71,7 @@ pub fn main() !void {
         std.process.exit(1);
     }
     if (dest != null) {
-        try std.fmt.format(ostream, "Destination Path: {s}\n", .{dest.?});
+        try ostream.print("Destination Path: {s}\n", .{dest.?});
     } else {
         std.log.info("{s}", .{help});
         std.log.err("No Destination path argument found!\n", .{});
@@ -137,7 +137,8 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
             //push the current walker to the stack
             //open new directory with new walker
             if (std.fs.makeDirAbsolute(mirror_path)) |_| {
-                std.log.warn("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
+                try ostream.print("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
+                try log_writer.print("Path not found in mirror: {s}\nCreating New Path: {s}\n", .{ sub_file.path, sub_file.path });
                 continue;
             } else |err| switch (err) {
                 std.posix.MakeDirError.PathAlreadyExists => {
@@ -148,6 +149,7 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
                 },
             }
         } else {
+            //try ostream.print("  Copying File into Mirror: {s}\n", .{realpath});
             std.log.info("  Copying File into Mirror: {s}\n", .{realpath});
             try std.fs.copyFileAbsolute(realpath, mirror_path, .{});
             try std.fs.deleteFileAbsolute(realpath);
