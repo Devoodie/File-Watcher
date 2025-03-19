@@ -150,9 +150,9 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
         }
         const sub_dir = try source_dir.openDir(file_name, .{ .iterate = true });
 
-        var pool: std.Thread.Pool = .{ .allocator = allocator };
-        try pool.init(.{});
-        defer pool.deinit();
+        //        var pool: std.Thread.Pool = .{ .allocator = allocator, .threads = []std.Thread };
+        //       try pool.init(.{});
+        //      defer pool.deinit();
 
         //        try pool.spawn(comptime func: anytype, );
         try recurse(sub_dir, allocator);
@@ -169,7 +169,10 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
         const realpath = try dir.realpathAlloc(allocator, sub_file.path);
         const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, realpath[starting_index..] });
         if (sub_file.kind == .directory) {
+            const source_dir = try dir.openDir(sub_file.path, .{});
+            const stat = try std.posix.fstat(source_dir.fd);
             if (std.fs.makeDirAbsolute(mirror_path)) {
+                std.pos
                 std.log.warn("Path doesn't exist in mirror! Creating path: {s}\n", .{mirror_path});
             } else |err| switch (err) {
                 std.posix.MakeDirError.PathAlreadyExists => {},

@@ -1,4 +1,8 @@
+[info]: Source Path: /home/devooty/programming/file-watcher/zig-out/bin/test
+[info]: Destination Path: /home/devooty/programming/file-watcher/zig-out/bin/test_dest/
 [warning]: Path doesn't exist in mirror! Creating Folder: another
+[warning]: Path doesn't exist in mirror! Creating path: /home/devooty/programming/file-watcher/zig-out/bin/test_dest/another/lowerlowerlevel
+[info]:   Copying File into Mirror: /home/devooty/programming/file-watcher/zig-out/bin/test/another/lowerlowerlevel/lockedfile.txt
 [info]:   Copying File into Mirror: /home/devooty/programming/file-watcher/zig-out/bin/test/another/something.txt
 [warning]: Path doesn't exist in mirror! Creating Folder: lowerlevel
 [info]:   Copying File into Mirror: /home/devooty/programming/file-watcher/zig-out/bin/test/lowerlevel/somethingelse.txt
