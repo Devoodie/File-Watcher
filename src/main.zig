@@ -121,7 +121,19 @@ pub fn main() !void {
 
     //   if (src_meta.modified() < dest_meta.modified()) {}
     // }
-    try copyFiles(&source_dir, &dest_dir);
+    while (true) {
+        const dest_stat = try std.posix.fstat(dest_dir.fd);
+        const source_stat = try std.posix.fstat(source_dir.fd);
+
+        if (dest_stat.mtim.sec < source_stat.mtim.sec) {
+            std.log.info("Starting Copy!\n", .{});
+            try copyFiles(&source_dir, &dest_dir);
+            std.log.info("Copy Complete!\n", .{});
+        } else {
+            std.log.info("No changes detected!\n", .{});
+        }
+        std.Thread.sleep(300000000000);
+    }
 }
 
 pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
@@ -142,7 +154,7 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
             //    const mirror_dir: std.fs.Dir = blk: {
             //open the first level of files in destination and see if it exists
             //if not create it
-
+            std.log.info("Recursing into Directory: {s}\n", .{file.name});
             var mirror = blk: {
                 if (dest_dir.makeOpenPath(file_name, .{ .iterate = true })) |path| {
                     std.log.warn("Path doesn't exist in mirror! Creating Folder: {s}\n", .{file_name});
@@ -174,7 +186,6 @@ pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator
     while (try walker.next()) |sub_file| {
         const realpath = try dir.realpathAlloc(allocator, sub_file.path);
         const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, realpath[starting_index..] });
-        try ostream.print("{s}\n", .{sub_file.path});
         if (sub_file.kind == .directory) {
             const stat = try std.posix.fstat(mirror.fd);
             if (mirror.makeOpenPath(mirror_path, .{ .iterate = true })) |path| {
