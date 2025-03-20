@@ -133,33 +133,39 @@ pub fn copyFiles(source_dir: *std.fs.Dir, dest_dir: *std.fs.Dir) !void {
     while (try iteator.next()) |file| {
         const file_name = file.name;
 
+        var sub_dir = try source_dir.openDir(file_name, .{ .iterate = true });
+        defer sub_dir.close();
+
+        const stat = try std.posix.fstat(sub_dir.fd);
+
         if (file.kind == .directory) {
             //    const mirror_dir: std.fs.Dir = blk: {
             //open the first level of files in destination and see if it exists
             //if not create it
-            if (dest_dir.makeDir(file_name)) |_| {
-                std.log.warn("Path doesn't exist in mirror! Creating Folder: {s}\n", .{file_name});
-            } else |err| switch (err) {
-                std.posix.MakeDirError.PathAlreadyExists => {
-                    _ = void;
-                },
-                else => {
-                    return err;
-                },
-            }
+
+            var mirror = blk: {
+                if (dest_dir.makeOpenPath(file_name, .{ .iterate = true })) |path| {
+                    std.log.warn("Path doesn't exist in mirror! Creating Folder: {s}\n", .{file_name});
+                    try path.chown(stat.uid, stat.gid);
+                    break :blk path;
+                } else |err| switch (err) {
+                    std.posix.MakeDirError.PathAlreadyExists => {
+                        break :blk try dest_dir.openDir(file_name, .{ .iterate = true });
+                    },
+                    else => {
+                        return err;
+                    },
+                }
+            };
+
+            defer mirror.close();
+
+            try recurse(sub_dir, mirror, allocator);
         }
-        const sub_dir = try source_dir.openDir(file_name, .{ .iterate = true });
-
-        //        var pool: std.Thread.Pool = .{ .allocator = allocator, .threads = []std.Thread };
-        //       try pool.init(.{});
-        //      defer pool.deinit();
-
-        //        try pool.spawn(comptime func: anytype, );
-        try recurse(sub_dir, allocator);
     }
 }
 
-pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
+pub fn recurse(dir: std.fs.Dir, mirror: std.fs.Dir, allocator: std.mem.Allocator) !void {
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
@@ -168,12 +174,12 @@ pub fn recurse(dir: std.fs.Dir, allocator: std.mem.Allocator) !void {
     while (try walker.next()) |sub_file| {
         const realpath = try dir.realpathAlloc(allocator, sub_file.path);
         const mirror_path = try std.fs.path.join(allocator, &[_][]const u8{ dest.?, realpath[starting_index..] });
+        try ostream.print("{s}\n", .{sub_file.path});
         if (sub_file.kind == .directory) {
-            const source_dir = try dir.openDir(sub_file.path, .{});
-            const stat = try std.posix.fstat(source_dir.fd);
-            if (std.fs.makeDirAbsolute(mirror_path)) {
-                std.pos
+            const stat = try std.posix.fstat(mirror.fd);
+            if (mirror.makeOpenPath(mirror_path, .{ .iterate = true })) |path| {
                 std.log.warn("Path doesn't exist in mirror! Creating path: {s}\n", .{mirror_path});
+                try path.chown(stat.uid, stat.gid);
             } else |err| switch (err) {
                 std.posix.MakeDirError.PathAlreadyExists => {},
                 else => {
