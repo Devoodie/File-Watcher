@@ -125,7 +125,7 @@ pub fn main() !void {
         const dest_stat = try std.posix.fstat(dest_dir.fd);
         const source_stat = try std.posix.fstat(source_dir.fd);
 
-        if (dest_stat.mtim.sec < source_stat.mtim.sec) {
+        if (dest_stat.atim.sec < source_stat.atim.sec) {
             std.log.info("Starting Copy!\n", .{});
             try copyFiles(&source_dir, &dest_dir);
             std.log.info("Copy Complete!\n", .{});
